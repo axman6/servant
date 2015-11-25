@@ -18,44 +18,17 @@ import Data.String.Conversions
 import Data.Proxy
 import Data.Text (Text)
 import Data.Text.Encoding
-import Data.Typeable
 import Network.HTTP.Client hiding (Proxy, path)
 import Network.HTTP.Media
 import Network.HTTP.Types
 import qualified Network.HTTP.Types.Header   as HTTP
 import Network.URI hiding (path)
 import Servant.API.ContentTypes
+import Servant.Client.PerformRequest
 import Servant.Common.BaseUrl
-
-import qualified Network.HTTP.Client as Client
-
 import Web.HttpApiData
 
-data ServantError
-  = FailureResponse
-    { responseStatus            :: Status
-    , responseContentType       :: MediaType
-    , responseBody              :: ByteString
-    }
-  | DecodeFailure
-    { decodeError               :: String
-    , responseContentType       :: MediaType
-    , responseBody              :: ByteString
-    }
-  | UnsupportedContentType
-    { responseContentType       :: MediaType
-    , responseBody              :: ByteString
-    }
-  | InvalidContentTypeHeader
-    { responseContentTypeHeader :: ByteString
-    , responseBody              :: ByteString
-    }
-  | ConnectionError
-    { connectionError           :: SomeException
-    }
-  deriving (Show, Typeable)
-
-instance Exception ServantError
+import qualified Network.HTTP.Client as Client
 
 data Req = Req
   { reqPath   :: String
@@ -127,14 +100,14 @@ displayHttpRequest httpmethod = "HTTP " ++ cs httpmethod ++ " request"
 performRequest :: Method -> Req -> BaseUrl -> Manager
                -> ExceptT ServantError IO ( Int, ByteString, MediaType
                                           , [HTTP.Header], Response ByteString)
-performRequest reqMethod req reqHost manager = do
+performRequest reqMethod req reqHost _manager = do -- fixme: remove manager?
   partialRequest <- liftIO $ reqToRequest req reqHost
 
   let request = partialRequest { Client.method = reqMethod
                                , checkStatus = \ _status _headers _cookies -> Nothing
                                }
 
-  eResponse <- liftIO $ catchConnectionError $ Client.httpLbs request manager
+  eResponse <- liftIO $ performHttpRequest request
   case eResponse of
     Left err ->
       throwE . ConnectionError $ SomeException err
@@ -168,8 +141,3 @@ performRequestCT ct reqMethod req reqHost manager = do
 performRequestNoBody :: Method -> Req -> BaseUrl -> Manager -> ExceptT ServantError IO ()
 performRequestNoBody reqMethod req reqHost manager =
   void $ performRequest reqMethod req reqHost manager
-
-catchConnectionError :: IO a -> IO (Either ServantError a)
-catchConnectionError action =
-  catch (Right <$> action) $ \e ->
-    pure . Left . ConnectionError $ SomeException (e :: HttpException)
