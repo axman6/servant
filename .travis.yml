@@ -18,18 +18,26 @@ addons:
       - libgmp-dev
 
 install:
+  # set up tinc
   - (mkdir -p $HOME/.local/bin && cd $HOME/.local/bin && wget https://zalora-public.s3.amazonaws.com/tinc && chmod +x tinc)
   - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/1.22/bin:$PATH
   - cabal --version
   - travis_retry cabal update
   - sed -i 's/^jobs:/-- jobs:/' ${HOME}/.cabal/config
 
+  # set up stack (for ghcjs in servant-client)
+  - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+  - stack --version
+
 script:
   - if [ "$GHCVER" = "GHCJS" ];
       then ./.travis-ghcjs.sh ;
       else ./.travis-ghc.sh ;
     fi
+  - export CASHER_TIME_OUT=500
 
 cache:
   directories:
     - $HOME/.tinc/cache
+    - $HOME/.stack
+    - $HOME/.ghcjs
