@@ -28,7 +28,7 @@ library
     Servant.Client
     Servant.Common.BaseUrl
     Servant.Common.Req
-    Servant.Client.PerformRequest.Base
+    Servant.Client.PerformRequest.Base -- fixme: shouldn't be part of the public API
   other-modules:
     Servant.Client.PerformRequest
   if impl(ghcjs)
@@ -60,7 +60,6 @@ library
     build-depends:
         ghcjs-base
       , ghcjs-prim
-      , case-insensitive
   hs-source-dirs: src
   default-language: Haskell2010
   ghc-options: -Wall -Werror
@@ -74,10 +73,16 @@ test-suite spec
   main-is: Spec.hs
   other-modules:
       Servant.ClientSpec
+    , Servant.Client.PerformRequest.BaseSpec
     , Servant.Client.TestServer
+    , Servant.Common.BaseUrlSpec
+    , Spec
   if impl(ghcjs)
     other-modules:
-        Servant.Client.TestServer.GHCJS
+      Servant.Client.TestServer.GHCJS
+  else
+    other-modules:
+      Servant.Client.TestServer.GHC
   build-depends:
       base == 4.*
     , transformers
