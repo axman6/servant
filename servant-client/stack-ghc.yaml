@@ -7,7 +7,9 @@ packages:
       - servant
       - servant-server
     extra-dep: true
-  - location: ../../hspec
+  - location:
+      git: https://github.com/hspec/hspec
+      commit: bd06049
     subdirs:
       - ./
       - hspec-core
