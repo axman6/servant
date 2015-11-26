@@ -20,8 +20,7 @@ import           Network.HTTP.Types
 
 import           Servant.Client.PerformRequest.Base
 
--- fixme: clean up the whole module
--- fixme: free Callbacks
+-- fixme: free Callback
 
 newtype JSXMLHttpRequest = JSXMLHttpRequest JSVal
 
@@ -66,16 +65,28 @@ performXhr xhr request = do
 
 onReadyStateChange :: JSXMLHttpRequest -> IO () -> IO ()
 onReadyStateChange xhr action = do
-  callback <- syncCallback ContinueAsync action
+  callback <- asyncCallback action
   js_onReadyStateChange xhr callback
 foreign import javascript safe "$1.onreadystatechange = $2;"
   js_onReadyStateChange :: JSXMLHttpRequest -> Callback (IO ()) -> IO ()
+
+foreign import javascript unsafe "$1.readyState"
+  readyState :: JSXMLHttpRequest -> IO Int
 
 openXhr :: JSXMLHttpRequest -> String -> String -> Bool -> IO ()
 openXhr request method url async =
   js_openXhr request (toJSString method) (toJSString url) async
 foreign import javascript unsafe "$1.open($2, $3, $4)"
   js_openXhr :: JSXMLHttpRequest -> JSVal -> JSVal -> Bool -> IO ()
+
+toUrl :: Request -> String
+toUrl request =
+  let protocol = if secure request then "https" else "http"
+      hostS = cs $ host request
+      portS = show $ port request
+      pathS = cs $ path request
+      queryS = cs $ queryString request
+  in protocol ++ "://" ++ hostS ++ ":" ++ portS ++ pathS ++ queryS
 
 setHeaders :: JSXMLHttpRequest -> RequestHeaders -> IO ()
 setHeaders xhr headers = forM_ headers $ \ (key, value) ->
@@ -92,8 +103,11 @@ foreign import javascript unsafe "$1.send()"
 foreign import javascript unsafe "$1.send($2)"
   js_sendXhrWithBody :: JSXMLHttpRequest -> JSVal -> IO ()
 
-foreign import javascript unsafe "$1.readyState"
-  readyState :: JSXMLHttpRequest -> IO Int
+toBody :: Request -> Maybe String
+toBody request = case requestBody request of
+  RequestBodyLBS "" -> Nothing
+  RequestBodyLBS x -> Just $ cs x
+  _ -> error "servant-client only uses RequestBodyLBS"
 
 -- * inspecting the xhr response
 
@@ -137,20 +151,3 @@ getResponseText :: JSXMLHttpRequest -> IO String
 getResponseText xhr = fromJSString <$> js_responseText xhr
 foreign import javascript unsafe "$1.responseText"
   js_responseText :: JSXMLHttpRequest -> IO JSVal
-
--- conversions
-
-toUrl :: Request -> String
-toUrl request =
-  let protocol = if secure request then "https" else "http"
-      hostS = cs $ host request
-      portS = show $ port request
-      pathS = cs $ path request
-      queryS = cs $ queryString request
-  in protocol ++ "://" ++ hostS ++ ":" ++ portS ++ pathS ++ queryS
-
-toBody :: Request -> Maybe String
-toBody request = case requestBody request of
-  RequestBodyLBS "" -> Nothing
-  RequestBodyLBS x -> Just $ cs x
-  _ -> error "servant-client only uses RequestBodyLBS"
