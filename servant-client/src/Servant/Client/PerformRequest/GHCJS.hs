@@ -21,33 +21,48 @@ import           Network.HTTP.Types
 import           Servant.Client.PerformRequest.Base
 
 -- fixme: clean up the whole module
-
-performHttpRequest :: Manager -> Request -> IO (Either ServantError (Response LBS.ByteString))
-performHttpRequest _ request = do
-  lib <- requireXMLThing
-  xhr <- newXMLHttpRequest lib
-  responseMVar <- newEmptyMVar
-  onReadyStateChange xhr $ do
-    state <- readyState xhr
-    case state of
-      4 -> putMVar responseMVar ()
-      _ -> return ()
-  openXhr xhr (toMethod request) (toUrl request) True
-  setHeaders xhr (requestHeaders request)
-  sendXhr xhr (toBody request)
-  takeMVar responseMVar
-  toResponse xhr
+-- fixme: free Callbacks
 
 newtype JSXMLHttpRequest = JSXMLHttpRequest JSVal
 
 newtype JSXMLHttpRequestClass = JSXMLHttpRequestClass JSVal
 
+performHttpRequest :: Manager -> Request -> IO (Either ServantError (Response LBS.ByteString))
+performHttpRequest _ request = do
+  xhr <- initXhr
+  performXhr xhr request
+  toResponse xhr
+
+-- * initialization
+
+initXhr :: IO JSXMLHttpRequest
+initXhr = do
+  lib <- requireXMLHttpRequestClass
+  newXMLHttpRequest lib
+
 foreign import javascript unsafe
+  -- branching between node (for testing) and browsers
   "(function () {if (typeof require !== 'undefined') { return require('xhr2'); } else { return XMLHttpRequest; };})()"
-  requireXMLThing :: IO JSXMLHttpRequestClass
+  requireXMLHttpRequestClass :: IO JSXMLHttpRequestClass
 
 foreign import javascript unsafe "new $1()"
   newXMLHttpRequest :: JSXMLHttpRequestClass -> IO JSXMLHttpRequest
+
+-- * performing requests
+
+-- Performs the xhr and blocks until the response was received
+performXhr :: JSXMLHttpRequest -> Request -> IO ()
+performXhr xhr request = do
+  waiter <- newEmptyMVar
+  onReadyStateChange xhr $ do
+    state <- readyState xhr
+    case state of
+      4 -> putMVar waiter ()
+      _ -> return ()
+  openXhr xhr (cs $ method request) (toUrl request) True
+  setHeaders xhr (requestHeaders request)
+  sendXhr xhr (toBody request)
+  takeMVar waiter
 
 onReadyStateChange :: JSXMLHttpRequest -> IO () -> IO ()
 onReadyStateChange xhr action = do
@@ -62,6 +77,12 @@ openXhr request method url async =
 foreign import javascript unsafe "$1.open($2, $3, $4)"
   js_openXhr :: JSXMLHttpRequest -> JSVal -> JSVal -> Bool -> IO ()
 
+setHeaders :: JSXMLHttpRequest -> RequestHeaders -> IO ()
+setHeaders xhr headers = forM_ headers $ \ (key, value) ->
+  js_setRequestHeader xhr (toJSString $ cs $ original key) (toJSString $ cs value)
+foreign import javascript unsafe "$1.setRequestHeader($2, $3)"
+  js_setRequestHeader :: JSXMLHttpRequest -> JSVal -> JSVal -> IO ()
+
 sendXhr :: JSXMLHttpRequest -> Maybe String -> IO ()
 sendXhr request Nothing = js_sendXhr request
 sendXhr request (Just body) =
@@ -74,50 +95,7 @@ foreign import javascript unsafe "$1.send($2)"
 foreign import javascript unsafe "$1.readyState"
   readyState :: JSXMLHttpRequest -> IO Int
 
-foreign import javascript unsafe "$1.status"
-  getStatus :: JSXMLHttpRequest -> IO Int
-
-getStatusText :: JSXMLHttpRequest -> IO String
-getStatusText = fmap fromJSString . js_statusText
-foreign import javascript unsafe "$1.statusText"
-  js_statusText :: JSXMLHttpRequest -> IO JSVal
-
-getAllResponseHeaders :: JSXMLHttpRequest -> IO String
-getAllResponseHeaders xhr =
-  fromJSString <$> js_getAllResponseHeaders xhr
-foreign import javascript unsafe "$1.getAllResponseHeaders()"
-  js_getAllResponseHeaders :: JSXMLHttpRequest -> IO JSVal
-
-getResponseText :: JSXMLHttpRequest -> IO String
-getResponseText xhr = fromJSString <$> js_responseText xhr
-foreign import javascript unsafe "$1.responseText"
-  js_responseText :: JSXMLHttpRequest -> IO JSVal
-
-setHeaders :: JSXMLHttpRequest -> RequestHeaders -> IO ()
-setHeaders xhr headers = forM_ headers $ \ (key, value) ->
-  js_setRequestHeader xhr (toJSString $ cs $ original key) (toJSString $ cs value)
-foreign import javascript unsafe "$1.setRequestHeader($2, $3)"
-  js_setRequestHeader :: JSXMLHttpRequest -> JSVal -> JSVal -> IO ()
-
--- conversions
-
-toMethod :: Request -> String
-toMethod = cs . method
-
-toUrl :: Request -> String
-toUrl request =
-  let protocol = if secure request then "https" else "http"
-      hostS = cs $ host request
-      portS = show $ port request
-      pathS = cs $ path request
-      queryS = cs $ queryString request
-  in protocol ++ "://" ++ hostS ++ ":" ++ portS ++ pathS ++ queryS
-
-toBody :: Request -> Maybe String
-toBody request = case requestBody request of
-  RequestBodyLBS "" -> Nothing
-  RequestBodyLBS x -> Just $ cs x
-  _ -> error "servant-client only uses RequestBodyLBS"
+-- * inspecting the xhr response
 
 -- fixme: all fields in servant's request handled?
 
@@ -140,3 +118,39 @@ toResponse xhr = do
         responseCookieJar = mempty,
         responseClose' = ResponseClose (return ())
       }
+
+foreign import javascript unsafe "$1.status"
+  getStatus :: JSXMLHttpRequest -> IO Int
+
+getStatusText :: JSXMLHttpRequest -> IO String
+getStatusText = fmap fromJSString . js_statusText
+foreign import javascript unsafe "$1.statusText"
+  js_statusText :: JSXMLHttpRequest -> IO JSVal
+
+getAllResponseHeaders :: JSXMLHttpRequest -> IO String
+getAllResponseHeaders xhr =
+  fromJSString <$> js_getAllResponseHeaders xhr
+foreign import javascript unsafe "$1.getAllResponseHeaders()"
+  js_getAllResponseHeaders :: JSXMLHttpRequest -> IO JSVal
+
+getResponseText :: JSXMLHttpRequest -> IO String
+getResponseText xhr = fromJSString <$> js_responseText xhr
+foreign import javascript unsafe "$1.responseText"
+  js_responseText :: JSXMLHttpRequest -> IO JSVal
+
+-- conversions
+
+toUrl :: Request -> String
+toUrl request =
+  let protocol = if secure request then "https" else "http"
+      hostS = cs $ host request
+      portS = show $ port request
+      pathS = cs $ path request
+      queryS = cs $ queryString request
+  in protocol ++ "://" ++ hostS ++ ":" ++ portS ++ pathS ++ queryS
+
+toBody :: Request -> Maybe String
+toBody request = case requestBody request of
+  RequestBodyLBS "" -> Nothing
+  RequestBodyLBS x -> Just $ cs x
+  _ -> error "servant-client only uses RequestBodyLBS"

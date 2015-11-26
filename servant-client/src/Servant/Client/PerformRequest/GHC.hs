@@ -10,10 +10,7 @@ module Servant.Client.PerformRequest.GHC (
 
 import           Control.Exception
 import qualified Data.ByteString.Lazy as LBS
-import           Data.IORef
 import           Network.HTTP.Client
-import           Network.HTTP.Client.TLS
-import           System.IO.Unsafe
 
 import           Servant.Client.PerformRequest.Base
 
