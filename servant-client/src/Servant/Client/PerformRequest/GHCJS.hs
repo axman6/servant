@@ -111,8 +111,6 @@ toBody request = case requestBody request of
 
 -- * inspecting the xhr response
 
--- fixme: all fields in servant's request handled?
-
 -- This function is only supposed to handle 'ConnectionError's. Other
 -- 'ServantError's are created in Servant.Client.Req.
 toResponse :: JSXMLHttpRequest -> IO (Either ServantError (Response LBS.ByteString))
