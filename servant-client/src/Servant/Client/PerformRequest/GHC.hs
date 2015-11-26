@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -8,6 +9,9 @@ module Servant.Client.PerformRequest.GHC (
   performHttpRequest,
   ) where
 
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative
+#endif
 import           Control.Exception
 import qualified Data.ByteString.Lazy as LBS
 import           Network.HTTP.Client
