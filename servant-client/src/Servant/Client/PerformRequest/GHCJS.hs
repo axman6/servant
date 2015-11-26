@@ -22,8 +22,8 @@ import           Servant.Client.PerformRequest.Base
 
 -- fixme: clean up the whole module
 
-performHttpRequest :: Request -> IO (Either ServantError (Response LBS.ByteString))
-performHttpRequest request = do
+performHttpRequest :: Manager -> Request -> IO (Either ServantError (Response LBS.ByteString))
+performHttpRequest _ request = do
   lib <- requireXMLThing
   xhr <- newXMLHttpRequest lib
   responseMVar <- newEmptyMVar

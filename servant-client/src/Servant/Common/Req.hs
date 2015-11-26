@@ -100,14 +100,14 @@ displayHttpRequest httpmethod = "HTTP " ++ cs httpmethod ++ " request"
 performRequest :: Method -> Req -> BaseUrl -> Manager
                -> ExceptT ServantError IO ( Int, ByteString, MediaType
                                           , [HTTP.Header], Response ByteString)
-performRequest reqMethod req reqHost _manager = do -- fixme: remove manager?
+performRequest reqMethod req reqHost manager = do
   partialRequest <- liftIO $ reqToRequest req reqHost
 
   let request = partialRequest { Client.method = reqMethod
                                , checkStatus = \ _status _headers _cookies -> Nothing
                                }
 
-  eResponse <- liftIO $ performHttpRequest request
+  eResponse <- liftIO $ performHttpRequest manager request
   case eResponse of
     Left err ->
       throwE . ConnectionError $ SomeException err

@@ -17,18 +17,10 @@ import           System.IO.Unsafe
 
 import           Servant.Client.PerformRequest.Base
 
-performHttpRequest :: Request -> IO (Either ServantError (Response LBS.ByteString))
-performHttpRequest request =
-  __withGlobalManager $ \ manager ->
-    catchConnectionError $
-      httpLbs request manager
-
-__withGlobalManager :: (Manager -> IO a) -> IO a
-__withGlobalManager action = readIORef __manager >>= action
-
-{-# NOINLINE __manager #-}
-__manager :: IORef Manager
-__manager = unsafePerformIO (newManager tlsManagerSettings >>= newIORef)
+performHttpRequest :: Manager -> Request
+  -> IO (Either ServantError (Response LBS.ByteString))
+performHttpRequest manager request =
+  catchConnectionError $ httpLbs request manager
 
 catchConnectionError :: IO a -> IO (Either ServantError a)
 catchConnectionError action =
