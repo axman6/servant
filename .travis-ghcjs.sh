@@ -3,7 +3,7 @@ set -ev
 
 tinc
 cabal exec which hspec-discover
-barf
+borf
 
 hspec-discover --version
 cd servant-client
