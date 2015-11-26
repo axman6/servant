@@ -25,7 +25,10 @@ install:
   - sed -i 's/^jobs:/-- jobs:/' ${HOME}/.cabal/config
 
 script:
-  - for package in $(cat sources.txt); do (cd $package && tinc && cabal configure --enable-tests --disable-optimization && cabal build && cabal test) || exit 1; done
+  - if [ "$GHCVER" = "GHCJS" ]; \
+      then ./.travis-ghcjs.sh ; \
+      else ./.travis-ghc.sh ; \
+    fi
 
 cache:
   directories:
