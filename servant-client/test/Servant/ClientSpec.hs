@@ -108,7 +108,7 @@ api :: Proxy Api
 api = Proxy
 
 server :: Application
-server = logMiddleWare $ serve api (
+server = serve api (
        return alice
   :<|> return ()
   :<|> (\ name -> return $ Person name 0)
@@ -125,10 +125,6 @@ server = logMiddleWare $ serve api (
   :<|> (return $ addHeader 1729 $ addHeader "eg2" True)
   :<|> return ()
  )
-
-logMiddleWare :: Application -> Application
-logMiddleWare app request respond = do
-  app request respond
 
 type FailApi =
        "get" :> Raw
