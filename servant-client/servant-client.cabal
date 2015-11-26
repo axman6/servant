@@ -28,7 +28,8 @@ library
     Servant.Client
     Servant.Common.BaseUrl
     Servant.Common.Req
-    Servant.Client.PerformRequest.Base -- fixme: shouldn't be part of the public API
+     -- fixme: shouldn't be part of the public API:
+    Servant.Client.PerformRequest.Base
   other-modules:
     Servant.Client.PerformRequest
   if impl(ghcjs)

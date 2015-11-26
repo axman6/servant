@@ -44,18 +44,20 @@ data ServantError
 instance Exception ServantError
 
 parseHeaders :: String -> ResponseHeaders
-parseHeaders s = stripWhites $ fmap parseHeader $ split "\r\n" (cs s)
+parseHeaders s =
+  fmap (first mk) $
+  fmap (first strip . second strip) $
+  fmap parseHeader $
+  splitOn "\r\n" (cs s)
   where
     parseHeader :: BS.ByteString -> (BS.ByteString, BS.ByteString)
     parseHeader h = case BS.breakSubstring ":" (cs h) of
       (key, (BS.drop 1 -> value)) -> (key, value)
 
-    split :: BS.ByteString -> BS.ByteString -> [BS.ByteString]
-    split separator input = case BS.breakSubstring separator input of
+    splitOn :: BS.ByteString -> BS.ByteString -> [BS.ByteString]
+    splitOn separator input = case BS.breakSubstring separator input of
       (prefix, "") -> [prefix]
-      (prefix, rest) -> prefix : split separator (BS.drop (BS.length separator) rest)
+      (prefix, rest) -> prefix : splitOn separator (BS.drop (BS.length separator) rest)
 
     strip :: BS.ByteString -> BS.ByteString
     strip = BS.dropWhile isSpace . BS.reverse . BS.dropWhile isSpace . BS.reverse
-
-    stripWhites = fmap (first (mk . strip) . second strip)
