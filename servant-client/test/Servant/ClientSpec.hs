@@ -22,6 +22,9 @@
 
 module Servant.ClientSpec where
 
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative        ((<$>), pure)
+#endif
 import           Control.Arrow              (left)
 import           Control.Monad.Trans.Except (runExceptT, throwE)
 import           Data.Aeson
@@ -271,7 +274,7 @@ failSpec = around (withTestServer failServer "failServer") $ do
         let (getGetWrongHost :<|> _) = client api (BaseUrl Http "127.0.0.1" 19872 "") manager
         Left res <- runExceptT getGetWrongHost
         case res of
-          ConnectionError _ -> return () -- fixme: test more specific?
+          ConnectionError _ -> return ()
           _ -> fail $ "expected ConnectionError, but got " <> show res
 
       it "reports UnsupportedContentType" $ \baseUrl -> do

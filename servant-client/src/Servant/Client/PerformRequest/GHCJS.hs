@@ -20,8 +20,6 @@ import           Network.HTTP.Types
 
 import           Servant.Client.PerformRequest.Base
 
--- fixme: free Callback
-
 newtype JSXMLHttpRequest = JSXMLHttpRequest JSVal
 
 newtype JSXMLHttpRequestClass = JSXMLHttpRequestClass JSVal
@@ -53,7 +51,7 @@ foreign import javascript unsafe "new $1()"
 performXhr :: JSXMLHttpRequest -> Request -> IO ()
 performXhr xhr request = do
   waiter <- newEmptyMVar
-  onReadyStateChange xhr $ do
+  callback <- onReadyStateChange xhr $ do
     state <- readyState xhr
     case state of
       4 -> putMVar waiter ()
@@ -62,11 +60,13 @@ performXhr xhr request = do
   setHeaders xhr (requestHeaders request)
   sendXhr xhr (toBody request)
   takeMVar waiter
+  releaseCallback callback
 
-onReadyStateChange :: JSXMLHttpRequest -> IO () -> IO ()
+onReadyStateChange :: JSXMLHttpRequest -> IO () -> IO (Callback (IO ()))
 onReadyStateChange xhr action = do
   callback <- asyncCallback action
   js_onReadyStateChange xhr callback
+  return callback
 foreign import javascript safe "$1.onreadystatechange = $2;"
   js_onReadyStateChange :: JSXMLHttpRequest -> Callback (IO ()) -> IO ()
 
@@ -74,8 +74,8 @@ foreign import javascript unsafe "$1.readyState"
   readyState :: JSXMLHttpRequest -> IO Int
 
 openXhr :: JSXMLHttpRequest -> String -> String -> Bool -> IO ()
-openXhr request method url async =
-  js_openXhr request (toJSString method) (toJSString url) async
+openXhr xhr method url async =
+  js_openXhr xhr (toJSString method) (toJSString url) async
 foreign import javascript unsafe "$1.open($2, $3, $4)"
   js_openXhr :: JSXMLHttpRequest -> JSVal -> JSVal -> Bool -> IO ()
 
@@ -95,9 +95,9 @@ foreign import javascript unsafe "$1.setRequestHeader($2, $3)"
   js_setRequestHeader :: JSXMLHttpRequest -> JSVal -> JSVal -> IO ()
 
 sendXhr :: JSXMLHttpRequest -> Maybe String -> IO ()
-sendXhr request Nothing = js_sendXhr request
-sendXhr request (Just body) =
-  js_sendXhrWithBody request (toJSString body)
+sendXhr xhr Nothing = js_sendXhr xhr
+sendXhr xhr (Just body) =
+  js_sendXhrWithBody xhr (toJSString body)
 foreign import javascript unsafe "$1.send()"
   js_sendXhr :: JSXMLHttpRequest -> IO ()
 foreign import javascript unsafe "$1.send($2)"
