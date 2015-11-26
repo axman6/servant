@@ -20,6 +20,8 @@ import           Network.HTTP.Types
 
 import           Servant.Client.PerformRequest.Base
 
+-- fixme: clean up the whole module
+
 performHttpRequest :: Request -> IO (Either ServantError (Response LBS.ByteString))
 performHttpRequest request = do
   lib <- requireXMLThing
