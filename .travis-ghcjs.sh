@@ -1,7 +1,8 @@
 #/usr/bin/env bash
 set -ev
 
-tinc exec which hspec-discover
+tinc
+cabal exec which hspec-discover
 barf
 
 hspec-discover --version
