@@ -146,6 +146,37 @@ captureDateTimeServer :: FTime "%Y-%m-%d %H:%M:%S%Z" UTCTime -> ExceptT ServantE
 captureDateTimeServer = return . show
 
 
+captureTimeSpec :: Spec
+captureTimeSpec = do
+  describe "Servant.API.Times(CaptureTime)" $ do
+    with (return (serve captureTimeApi (captureDateServer :<|> captureDateTimeServer))) $ do
+
+      it "can capture parts of the 'pathInfo' (date only)" $ do
+        response <- get "/2015-12-02"
+        liftIO $ simpleBody response `shouldBe` (fromString . show $ fromGregorian 2015 12 2 :: ByteString)
+
+      it "can capture parts of the 'pathInfo' (date and time with a space)" $ do
+        let day       =  fromGregorian 2015 12 2
+            Just time =  makeTimeOfDayValid 12 34 56
+            tz        =  hoursToTimeZone 10
+            utcT      =  localTimeToUTC tz (LocalTime day time)
+            ftime     :: FTime "%Y-%m-%d %H:%M:%S%Z" UTCTime
+            ftime     =  FTime utcT
+        response <- get "/datetime/2015-12-02%2012:34:56+1000"
+        liftIO $ simpleBody response `shouldBe` (fromString . show $ ftime)
+
+
+      it "returns 404 if the decoding fails" $ do
+        get "/notAnInt" `shouldRespondWith` 404
+
+    with (return (serve
+        (Proxy :: Proxy (Capture "datetime" (FTime "%Y-%m-%d %H:%M:%S%Z" UTCTime) :> Raw))
+        (\ (FTime day )request_ respond ->
+            respond $ responseLBS ok200 [] (cs $ show $ pathInfo request_)))) $ do
+      it "strips the captured path snippet from pathInfo" $ do
+        get "/2015-12-02%2012:34:56+1000/foo" `shouldRespondWith` (fromString (show ["foo" :: String]))
+
+
 type CaptureFilenameApi = Capture "filename" (Ext "png") :> Get '[PlainText] String
 captureFilenameApi :: Proxy CaptureFilenameApi
 captureFilenameApi = Proxy
@@ -172,35 +203,6 @@ captureFilenameSpec = do
             respond $ responseLBS ok200 [] (cs $ show $ pathInfo request_)))) $ do
       it "strips the captured filename from pathInfo" $ do
         get "/foo.png/foo" `shouldRespondWith` (fromString (show ["foo" :: String]))
-
-
-type CaptureFilenameApi = Capture "filename" (Ext "png") :> Get '[PlainText] String
-captureFilenameApi :: Proxy CaptureFilenameApi
-captureFilenameApi = Proxy
-captureFilenameServer :: Ext "png" -> ExceptT ServantErr IO String
-captureFilenameServer ext = do
-  liftIO $ print ("Png:"::String, ext)
-  return . show $ ext
-
-captureFilenameSpec :: Spec
-captureFilenameSpec = do
-  describe "Servant.API.FileExtension" $ do
-    with (return (serve captureFilenameApi captureFilenameServer)) $ do
-
-      it "can capture parts of the 'pathInfo'" $ do
-        response <- get "/foo%20bar.png"
-        liftIO $ simpleBody response `shouldBe` "\"foo bar.png\""
-
-      it "returns 404 when extension is not present" $ do
-        get "/noExt" `shouldRespondWith` 404
-
-    with (return (serve
-        (Proxy :: Proxy (Capture "captured" (Ext "png") :> Raw))
-        (\(Ext "foo") request_ respond ->
-            respond $ responseLBS ok200 [] (cs $ show $ pathInfo request_)))) $ do
-      it "strips the captured filename from pathInfo" $ do
-        get "/foo.png/foo" `shouldRespondWith` (fromString (show ["foo" :: String]))
-
 
 
 type GetApi = Get '[JSON] Person
