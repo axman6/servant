@@ -183,9 +183,7 @@ type CaptureFilenameApi = Capture "filename" (Ext "png") :> Get '[PlainText] Str
 captureFilenameApi :: Proxy CaptureFilenameApi
 captureFilenameApi = Proxy
 captureFilenameServer :: Ext "png" -> ExceptT ServantErr IO String
-captureFilenameServer ext = do
-  liftIO $ print ("Png:"::String, ext)
-  return . show $ ext
+captureFilenameServer = return . show
 
 captureFilenameSpec :: Spec
 captureFilenameSpec = do
